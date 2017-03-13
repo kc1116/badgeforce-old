@@ -1,0 +1,17 @@
+title = "Badgeforce backend Configuration"
+
+[app]
+name = "Badgeforce backend API's"
+description = "This module contains all backend API's for the initial badgeforce system."
+
+[routing]
+ip = "0.0.0.0"
+port = "8083" 
+healthCheckStatusUp = "UP"
+
+[database]
+addrs = ["localhost:27017"]
+username = "badgeforce"
+password = "badgeforce"
+database = ["BadgeForce"]
+collections = ["BadgeForceUsers"]
