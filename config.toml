@@ -3,6 +3,7 @@ title = "Badgeforce backend Configuration"
 [app]
 name = "Badgeforce backend API's"
 description = "This module contains all backend API's for the initial badgeforce system."
+salt = "SECRETKEY"
 
 [routing]
 ip = "0.0.0.0"
@@ -13,5 +14,5 @@ healthCheckStatusUp = "UP"
 addrs = ["localhost:27017"]
 username = "badgeforce"
 password = "badgeforce"
-database = ["BadgeForce"]
+database = "BadgeForce"
 collections = ["BadgeForceUsers"]

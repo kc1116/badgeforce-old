@@ -1,6 +1,7 @@
 package main
 
 import "github.com/BurntSushi/toml"
+import "log"
 
 //Configuration . . . config contains useful information about configuration that can be used throughout the microservice.
 type Configuration struct {
@@ -13,6 +14,7 @@ type Configuration struct {
 type app struct {
 	Name        string `toml:"name"`
 	Description string `toml:"description"`
+	Salt        string `toml:"salt"`
 }
 
 type routing struct {
@@ -34,6 +36,7 @@ var Config Configuration
 
 func init() {
 	if _, err := toml.DecodeFile("config.toml", &Config); err != nil {
+		log.Println(Config)
 		panic(err)
 	}
 }

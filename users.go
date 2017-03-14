@@ -3,7 +3,9 @@ package main
 import (
 	"time"
 
-	mgo "gopkg.in/mgo.v2"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/satori/go.uuid"
 )
 
 const (
@@ -25,8 +27,21 @@ type system struct {
 }
 
 //CreateUser . . . return proper user struct
-func CreateUser(fname string, lname string, email string, password string) BadgeforceUser {
-
+func CreateUser(fname string, lname string, email string, password string) (BadgeforceUser, error) {
+	hashedPword, err := hashPassword(password)
+	if err != nil {
+		return BadgeforceUser{}, err
+	}
+	return BadgeforceUser{
+		FirstName: fname,
+		LastName:  lname,
+		Email:     email,
+		Password:  hashedPword,
+		System: system{
+			UUID:      GetUUID(),
+			CreatedOn: time.Now(),
+		},
+	}, nil
 }
 
 //StoreUser . . . create new user in Mongodb
@@ -39,28 +54,19 @@ func StoreUser(user BadgeforceUser) error {
 	return nil
 }
 
-//Initialize indexes in mongodb for BadgeForceUsers
-func init() {
-	store := GetStore()
-	defer store.Close()
-	index := []mgo.Index{
-		mgo.Index{
-			Key:        []string{"system.uuid", "email"},
-			Unique:     true,
-			DropDups:   true,
-			Background: true,
-			Sparse:     true,
-		},
-		mgo.Index{
-			Key:        []string{"firstname", "lastname"},
-			Background: true,
-			Sparse:     true,
-		},
+//GetUUID . . .returns a uuid v4 string
+func GetUUID() string {
+	return uuid.NewV4().String()
+}
+
+func hashPassword(password string) (string, error) {
+	hashedPwrd, err := bcrypt.GenerateFromPassword([]byte(password+Config.App.Salt), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
 	}
-	for _, i := range index {
-		err := store.DB(Config.Database.Database).C(collection).EnsureIndex(i)
-		if err != nil {
-			panic(err)
-		}
+	err = bcrypt.CompareHashAndPassword(hashedPwrd, []byte(password+Config.App.Salt))
+	if err != nil {
+		panic(err)
 	}
+	return string(hashedPwrd), nil
 }
