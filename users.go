@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -9,7 +10,7 @@ import (
 )
 
 const (
-	collection = "BadgeForceUsers"
+	letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
 //BadgeforceUser . . .
@@ -26,11 +27,18 @@ type system struct {
 	CreatedOn time.Time
 }
 
+type userSalt struct {
+	User string `bson:"user"`
+	Salt string `bson:"salt"`
+}
+
 //CreateUser . . . return proper user struct
-func CreateUser(fname string, lname string, email string, password string) (BadgeforceUser, error) {
-	hashedPword, err := hashPassword(password)
+func CreateUser(fname string, lname string, email string, password string) (BadgeforceUser, userSalt, error) {
+	uuid := GetUUID()
+	salt := getNewUserSalt(uuid)
+	hashedPword, err := hashPassword(password, salt)
 	if err != nil {
-		return BadgeforceUser{}, err
+		return BadgeforceUser{}, userSalt{}, err
 	}
 	return BadgeforceUser{
 		FirstName: fname,
@@ -38,19 +46,25 @@ func CreateUser(fname string, lname string, email string, password string) (Badg
 		Email:     email,
 		Password:  hashedPword,
 		System: system{
-			UUID:      GetUUID(),
+			UUID:      uuid,
 			CreatedOn: time.Now(),
 		},
-	}, nil
+	}, salt, nil
 }
 
 //StoreUser . . . create new user in Mongodb
-func StoreUser(user BadgeforceUser) error {
+func StoreUser(user BadgeforceUser, pwdSalt userSalt) error {
 	store := GetStore()
-	coll := store.DB(Config.Database.Database).C(collection)
+
+	coll := store.DB(Config.Database.Database).C(UserCollection)
 	if err := coll.Insert(user); err != nil {
 		return err
 	}
+	coll = store.DB(Config.Database.Database).C(SaltCollection)
+	if err := coll.Insert(pwdSalt); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -59,14 +73,21 @@ func GetUUID() string {
 	return uuid.NewV4().String()
 }
 
-func hashPassword(password string) (string, error) {
-	hashedPwrd, err := bcrypt.GenerateFromPassword([]byte(password+Config.App.Salt), bcrypt.DefaultCost)
+func hashPassword(password string, salt userSalt) (string, error) {
+	hashedPwrd, err := bcrypt.GenerateFromPassword([]byte(salt.Salt), bcrypt.DefaultCost)
 	if err != nil {
-		panic(err)
-	}
-	err = bcrypt.CompareHashAndPassword(hashedPwrd, []byte(password+Config.App.Salt))
-	if err != nil {
-		panic(err)
+		return "", err
 	}
 	return string(hashedPwrd), nil
+}
+
+func getNewUserSalt(uuid string) userSalt {
+	b := make([]byte, 64)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return userSalt{
+		User: uuid,
+		Salt: string(b),
+	}
 }

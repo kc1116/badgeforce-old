@@ -1,7 +1,11 @@
 package main
 
-import "gopkg.in/mgo.v2"
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"gopkg.in/mgo.v2"
+)
 
 // DataStore containing a pointer to a mgo session
 type DataStore struct {
@@ -11,7 +15,13 @@ type DataStore struct {
 //Store . . .
 var Store DataStore
 
+const (
+	UserCollection = "BadgeForceUsers"
+	SaltCollection = "BadgeForcePasswordSalts"
+)
+
 func init() {
+	fmt.Print("Initializing MongoDB . . . . .10%")
 	session, err := mgo.DialWithInfo(&mgo.DialInfo{
 		Addrs:    Config.Database.Addrs,
 		Username: Config.Database.Username,
@@ -24,7 +34,7 @@ func init() {
 	}
 	session.SetMode(mgo.Monotonic, true)
 	Store.Session = session
-
+	fmt.Print(". . . . .30%")
 	userIndex := []mgo.Index{
 		mgo.Index{
 			Key:        []string{"system.uuid", "email"},
@@ -39,12 +49,37 @@ func init() {
 			Sparse:     true,
 		},
 	}
-	for _, i := range userIndex {
-		err := session.DB(Config.Database.Database).C(collection).EnsureIndex(i)
-		if err != nil {
-			panic(err)
-		}
+
+	fmt.Print(". . . . .60%")
+	err = ensureMgoIndexes(userIndex, UserCollection)
+	if err != nil {
+		panic(err)
 	}
+
+	pwdSltIndexes := []mgo.Index{
+		mgo.Index{
+			Key:        []string{"user"},
+			Unique:     true,
+			DropDups:   true,
+			Background: true,
+			Sparse:     true,
+		},
+	}
+	err = ensureMgoIndexes(pwdSltIndexes, SaltCollection)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(". . . . .100%\n")
+}
+
+func ensureMgoIndexes(indexes []mgo.Index, collection string) error {
+	tempSession := Store.Session.Copy()
+	for _, i := range indexes {
+		err := tempSession.DB(Config.Database.Database).C(collection).EnsureIndex(i)
+		return err
+	}
+
+	return nil
 }
 
 //GetStore . . . returns a session store
