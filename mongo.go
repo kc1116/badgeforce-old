@@ -17,7 +17,6 @@ var Store DataStore
 
 const (
 	UserCollection = "BadgeForceUsers"
-	SaltCollection = "BadgeForcePasswordSalts"
 )
 
 func init() {
@@ -37,7 +36,14 @@ func init() {
 	fmt.Print(". . . . .30%")
 	userIndex := []mgo.Index{
 		mgo.Index{
-			Key:        []string{"system.uuid", "email"},
+			Key:        []string{"system.uuid"},
+			Unique:     true,
+			DropDups:   true,
+			Background: true,
+			Sparse:     true,
+		},
+		mgo.Index{
+			Key:        []string{"email"},
 			Unique:     true,
 			DropDups:   true,
 			Background: true,
@@ -51,35 +57,18 @@ func init() {
 	}
 
 	fmt.Print(". . . . .60%")
-	err = ensureMgoIndexes(userIndex, UserCollection)
-	if err != nil {
-		panic(err)
-	}
-
-	pwdSltIndexes := []mgo.Index{
-		mgo.Index{
-			Key:        []string{"user"},
-			Unique:     true,
-			DropDups:   true,
-			Background: true,
-			Sparse:     true,
-		},
-	}
-	err = ensureMgoIndexes(pwdSltIndexes, SaltCollection)
-	if err != nil {
-		panic(err)
-	}
+	ensureMgoIndexes(userIndex, UserCollection)
 	fmt.Print(". . . . .100%\n")
 }
 
-func ensureMgoIndexes(indexes []mgo.Index, collection string) error {
+func ensureMgoIndexes(indexes []mgo.Index, collection string) {
 	tempSession := Store.Session.Copy()
 	for _, i := range indexes {
 		err := tempSession.DB(Config.Database.Database).C(collection).EnsureIndex(i)
-		return err
+		if err != nil {
+			panic(err.Error())
+		}
 	}
-
-	return nil
 }
 
 //GetStore . . . returns a session store
