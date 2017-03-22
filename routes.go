@@ -22,6 +22,9 @@ type Routes []Route
 
 var routes = Routes{
 	Route{
-		"Return microservice health status.", "GET", "/health", health,
+		"Register a new user in the system.", "POST", "/register", Register,
+	},
+	Route{
+		"Login.", "POST", "/login", Login,
 	},
 }

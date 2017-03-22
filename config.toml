@@ -3,7 +3,7 @@ title = "Badgeforce backend Configuration"
 [app]
 name = "Badgeforce backend API's"
 description = "This module contains all backend API's for the initial badgeforce system."
-salt = "SECRETKEY"
+tokenkey = "SECRETKEY"
 
 [routing]
 ip = "0.0.0.0"

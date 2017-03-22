@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"math/rand"
 	"time"
 
@@ -8,19 +9,23 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"errors"
+
 	"github.com/satori/go.uuid"
+	"gopkg.in/asaskevich/govalidator.v4"
 )
 
 const (
-	letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letterBytes  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	usrPwrdRegex = "?!^[0-9]*$)(?!^[a-zA-Z]*$)^([a-zA-Z0-9]{8,10}"
 )
 
 //BadgeforceUser . . .
 type BadgeforceUser struct {
-	FirstName string `json:"firstname" bson:"firstname"`
-	LastName  string `json:"lastname" bson:"lastname"`
-	Email     string `json:"email" bson:"email"`
-	Password  string `json:"password" bson:"password"`
+	FirstName string `json:"firstname" bson:"firstname" valid:"alpha,required"`
+	LastName  string `json:"lastname" bson:"lastname" valid:"alpha,required"`
+	Email     string `json:"email" bson:"email" valid:"email,required"`
+	Password  string `json:"password" bson:"password" valid:"alphanum, required"`
 	System    system
 }
 
@@ -34,27 +39,72 @@ type userSalt struct {
 	Salt string `bson:"salt"`
 }
 
-//CreateUser . . . return proper user struct
-func CreateUser(fname string, lname string, email string, password string) (BadgeforceUser, error) {
-	uuid := GetUUID()
-	hashedPword, err := hashPassword(password)
+//NewUser . . . create user, store the user created, and get session token
+func NewUser(fname string, lname string, email string, password string) (Session, error) {
+	var session Session
+
+	user, err := createUser(fname, lname, email, password)
 	if err != nil {
-		return BadgeforceUser{}, err
+		err = errors.New("Registration could not be completed at this time.")
+		return session, err
 	}
-	return BadgeforceUser{
+
+	err = user.save()
+	if err != nil {
+		log.Println(err.Error())
+		err = errors.New("Registration could not be completed at this time.")
+		return session, err
+	}
+
+	session, err = getSessionToken(user)
+	if err != nil {
+		err = errors.New("Session could not be established at this time try again later.")
+		return session, err
+	}
+
+	return session, nil
+}
+
+//createUser . . . return proper user struct
+func createUser(fname string, lname string, email string, password string) (BadgeforceUser, error) {
+	uuid := GetUUID()
+	user := BadgeforceUser{
 		FirstName: fname,
 		LastName:  lname,
 		Email:     email,
-		Password:  hashedPword,
+		Password:  password,
 		System: system{
 			UUID:      uuid,
 			CreatedOn: time.Now(),
 		},
-	}, nil
+	}
+	err := user.Validate()
+	if err != nil {
+		log.Println("HERE")
+		err = errors.New("Registration could not be completed at this time.")
+		return user, err
+	}
+	hashedPword, err := hashPassword(password)
+	if err != nil {
+		return user, err
+	}
+
+	user.Password = hashedPword
+	return user, nil
 }
 
-//StoreUser . . . create new user in Mongodb
-func StoreUser(user BadgeforceUser) error {
+//Validate . . . user implementation of form validation
+func (user *BadgeforceUser) Validate() error {
+	_, err := govalidator.ValidateStruct(user)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//storeUser . . . create new user in Mongodb
+func (user *BadgeforceUser) save() error {
 	store := GetStore()
 	defer store.Close()
 	coll := store.DB(Config.Database.Database).C(UserCollection)
@@ -66,12 +116,27 @@ func StoreUser(user BadgeforceUser) error {
 }
 
 //GetUser . . . gets a user from the database based on user uuid
-func GetUser(uuid string) (BadgeforceUser, error) {
+func GetUser(email string) (BadgeforceUser, error) {
 	store := GetStore()
 	defer store.Close()
 	coll := store.DB(Config.Database.Database).C(UserCollection)
 
-	user := BadgeforceUser{}
+	var user BadgeforceUser
+	err := coll.Find(bson.M{"email": email}).One(&user)
+	if err != nil {
+		return user, err
+	}
+
+	return user, nil
+}
+
+//GetUser . . . gets a user from the database based on user uuid
+func getUserByUUID(uuid string) (BadgeforceUser, error) {
+	store := GetStore()
+	defer store.Close()
+	coll := store.DB(Config.Database.Database).C(UserCollection)
+
+	var user BadgeforceUser
 	err := coll.Find(bson.M{"system.uuid": uuid}).One(&user)
 	if err != nil {
 		return user, err
@@ -99,4 +164,10 @@ func getNewUserSalt() []byte {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return b
+}
+
+func init() {
+	/*govalidator.TagMap["pword"] = govalidator.Validator(func(password string) bool {
+		return regexp.MustCompile(usrPwrdRegex).MatchString(password)
+	})*/
 }

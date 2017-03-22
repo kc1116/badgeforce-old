@@ -14,7 +14,7 @@ type Configuration struct {
 type app struct {
 	Name        string `toml:"name"`
 	Description string `toml:"description"`
-	Salt        string `toml:"salt"`
+	TokenKey    string `toml:"tokenkey"`
 }
 
 type routing struct {
