@@ -80,7 +80,7 @@ func createUser(fname string, lname string, email string, password string) (Badg
 	}
 	err := user.Validate()
 	if err != nil {
-		log.Println("HERE")
+		log.Println(err.Error())
 		err = errors.New("Registration could not be completed at this time.")
 		return user, err
 	}
